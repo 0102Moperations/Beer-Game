@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beer Game — 채찍 효과를 체험하라 | Opsera</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Black+Han+Sans&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --navy:#1B5FA8;--navy-d:#164E8A;--navy-l:#E8F1FA;
+  --red:#D6474A;--green:#2A9D5C;--amber:#C98A16;--purple:#7C4DBE;
+  --bg:#F7F6F3;--surface:#fff;--surface2:#F1EFEA;
+  --text:#1E1E22;--text2:#6A6A72;--text3:#9C9CA6;
+  --border:rgba(0,0,0,0.09);--border2:rgba(0,0,0,0.18);
+  --radius:10px;--radius-lg:14px;
+}
+body{font-family:'Noto Sans KR','Malgun Gothic',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+.page{max-width:960px;margin:0 auto;padding:20px 16px 60px;}
+.screen{display:none;}.screen.active{display:block;}
+.hidden{display:none !important;}
+
+.topbar{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+.tb-title{display:flex;flex-direction:column;line-height:1.15;}
+.tb-title h1{font-family:'Black Han Sans',sans-serif;font-size:19px;letter-spacing:.5px;}
+.tb-sub{font-size:12px;color:var(--text2);margin-top:3px;}
+.badge{background:var(--navy);color:#fff;font-size:11px;font-weight:500;padding:4px 10px;border-radius:6px;white-space:nowrap;}
+.hub-link{margin-left:auto;font-size:12px;color:var(--text2);text-decoration:none;padding:5px 11px;border:1px solid var(--border);border-radius:20px;background:var(--surface);}
+.hub-link:hover{background:var(--surface2);}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:14px;}
+.card-title{font-size:13px;font-weight:500;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.hero{text-align:center;padding:16px 0 10px;}
+.hero .emo{font-size:48px;display:block;margin-bottom:10px;}
+.hero h2{font-family:'Black Han Sans',sans-serif;font-size:27px;margin-bottom:10px;}
+.hero p{font-size:14px;color:var(--text2);line-height:1.8;max-width:540px;margin:0 auto;}
+.rules{font-size:13px;color:var(--text2);line-height:1.85;}
+.rules .ri{display:flex;gap:8px;margin-bottom:6px;}
+.rules .ri b{color:var(--text);}
+.info{background:var(--surface2);border-left:3px solid var(--navy);padding:12px 14px;border-radius:var(--radius);font-size:12.5px;color:var(--text2);line-height:1.75;margin-bottom:14px;}
+.warn{background:#FFF7E6;border-left:3px solid var(--amber);padding:12px 14px;border-radius:var(--radius);font-size:13px;color:#7a5410;line-height:1.7;margin-bottom:14px;}
+
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:12px;font-weight:500;color:var(--text2);margin-bottom:6px;}
+.field input{width:100%;padding:11px 14px;border:1px solid var(--border2);border-radius:var(--radius);font-size:14px;font-family:inherit;outline:none;}
+.field input:focus{border-color:var(--navy);}
+.btn-p{display:block;width:100%;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:var(--radius);font-size:15px;font-weight:500;cursor:pointer;font-family:inherit;}
+.btn-p:hover{background:var(--navy-d);}
+.btn-p:disabled{opacity:.45;cursor:not-allowed;}
+.btn-s{display:inline-block;padding:9px 14px;background:var(--surface);color:var(--text);border:1px solid var(--border2);border-radius:var(--radius);font-size:13px;cursor:pointer;font-family:inherit;}
+.btn-s:hover{background:var(--surface2);}
+.msg{font-size:12px;margin-top:8px;min-height:17px;color:var(--text3);}
+.msg.err{color:var(--red);}
+
+/* 팀·역할 선택 */
+.team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;}
+.tbtn{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 6px;text-align:center;cursor:pointer;font-family:inherit;}
+.tbtn:hover{background:var(--surface2);}
+.tbtn.sel{border-color:var(--navy);background:var(--navy-l);}
+.tbtn .tn{font-size:15px;font-weight:700;margin-bottom:5px;}
+.dots{display:flex;gap:4px;justify-content:center;}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--surface2);border:1px solid var(--border2);}
+.dot.on{border:none;}
+.role-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+.rbtn{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:12px 8px;text-align:center;cursor:pointer;font-family:inherit;}
+.rbtn:hover:not(:disabled){background:var(--surface2);}
+.rbtn.sel{border-color:var(--navy);background:var(--navy-l);}
+.rbtn:disabled{opacity:.5;cursor:not-allowed;}
+.rbtn .ic{font-size:24px;display:block;margin-bottom:4px;}
+.rbtn .en{font-size:13px;font-weight:700;}
+.rbtn .ko{font-size:11px;color:var(--text2);}
+.rbtn .who{font-size:11px;color:var(--text3);margin-top:5px;min-height:15px;}
+
+/* 공급망 띠 */
+.chain{display:flex;align-items:stretch;gap:4px;overflow-x:auto;padding-bottom:2px;}
+.ch-node{flex:1;min-width:96px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 6px;text-align:center;font-size:12px;}
+.ch-node.me{border:2px solid var(--navy);background:var(--navy-l);}
+.ch-node .ic{font-size:20px;}
+.ch-node .en{font-weight:700;font-size:12px;}
+.ch-node .nm{font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ch-node .stt{font-size:11px;margin-top:3px;}
+.ch-arrow{display:flex;align-items:center;color:var(--text3);font-size:14px;}
+
+.stat-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
+.sc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;}
+.sc .lb{font-size:11px;color:var(--text2);margin-bottom:2px;}
+.sc .vl{font-size:16px;font-weight:700;}
+.prog{display:flex;gap:3px;margin-bottom:14px;}
+.prog i{flex:1;height:6px;border-radius:3px;background:var(--surface2);}
+.prog i.done{background:var(--green);}
+.prog i.cur{background:var(--navy);}
+
+/* 결정 패널 */
+.dec{border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;margin-bottom:12px;background:var(--surface);}
+.dec-h{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;margin-bottom:12px;}
+.dec-h .tag{font-size:11px;font-weight:500;color:#fff;padding:3px 8px;border-radius:6px;}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.step{background:var(--surface2);border-radius:var(--radius);padding:10px 12px;position:relative;}
+.step .no{font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:500;}
+.step .big{font-size:22px;font-weight:700;}
+.step .big small{font-size:12px;font-weight:500;color:var(--text2);margin-left:2px;}
+.step .sub{font-size:11.5px;color:var(--text2);margin-top:4px;line-height:1.55;}
+.step.order{background:#EEF4FB;border:1px solid rgba(27,95,168,.25);}
+.ord-row{display:flex;align-items:center;gap:4px;margin-top:2px;}
+.ord-row input{width:100%;min-width:0;padding:8px 6px;font-size:20px;font-weight:700;text-align:center;border:1px solid var(--border2);border-radius:8px;font-family:inherit;}
+.ord-row input:focus{outline:none;border-color:var(--navy);}
+.ord-row button{width:30px;height:38px;flex-shrink:0;border:1px solid var(--border2);background:#fff;border-radius:8px;font-size:16px;cursor:pointer;}
+.wk-cost{font-size:12px;color:var(--text2);margin-top:10px;}
+.wk-cost b{color:var(--text);}
+.bad{color:var(--red);font-weight:700;}
+.waitbox{text-align:center;padding:22px 12px;background:var(--surface2);border-radius:var(--radius-lg);margin-bottom:12px;}
+.waitbox .t{font-size:16px;font-weight:700;margin-bottom:6px;}
+.waitbox .s{font-size:13px;color:var(--text2);line-height:1.7;}
+.spin{display:inline-block;animation:sp 1.6s linear infinite;}
+@keyframes sp{to{transform:rotate(360deg);}}
+
+/* 순위 */
+.lb-row{display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border);font-size:13px;}
+.lb-row:last-child{border-bottom:none;}
+.lb-rank{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;background:var(--surface2);color:var(--text2);}
+.r1{background:#fef3e2;color:#854F0B;}.r2{background:#eceae4;color:#5F5E5A;}.r3{background:#faece7;color:#993C1D;}
+.lb-name{flex:1;font-weight:500;}
+.lb-wk{font-size:11px;color:var(--text3);min-width:44px;text-align:center;}
+.lb-bar-wrap{width:70px;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;}
+.lb-bar{height:100%;background:#B5D4F4;border-radius:3px;}
+.lb-val{min-width:96px;text-align:right;font-weight:700;}
+.lb-avg{font-size:11px;color:var(--text3);min-width:70px;text-align:right;}
+.me-row{background:linear-gradient(90deg,rgba(27,95,168,.09),transparent);border-radius:var(--radius);}
+.me-row .lb-name{color:var(--navy);}
+.me-row .lb-bar{background:var(--navy);}
+.lb-sep{font-size:11px;color:var(--text3);text-align:center;padding:4px 0;}
+.lb-empty{text-align:center;color:var(--text3);padding:14px;font-size:12px;}
+
+/* 장부 */
+.ledger{overflow-x:auto;}
+.ledger table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px;}
+.ledger th{background:var(--surface2);color:var(--text2);font-weight:500;padding:6px 4px;border-bottom:1px solid var(--border);text-align:center;line-height:1.35;}
+.ledger td{padding:6px 4px;border-bottom:1px solid var(--border);text-align:center;}
+.ledger tr.cur td{background:#EEF4FB;}
+.ledger td.o{font-weight:700;color:var(--navy);}
+.ledger td.bk{color:var(--red);font-weight:500;}
+.ledger tr.sum td{font-weight:700;background:var(--surface2);}
+details.lg summary{cursor:pointer;font-size:13px;font-weight:500;color:var(--text2);padding:4px 0;}
+
+.final-top{text-align:center;padding:12px 0 6px;}
+.final-top .k{font-size:13px;color:var(--text2);}
+.final-top .v{font-family:'Black Han Sans',sans-serif;font-size:38px;margin:4px 0;}
+.sd-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px;}
+.sd-table th,.sd-table td{padding:7px 6px;border-bottom:1px solid var(--border);text-align:center;}
+.sd-table th{background:var(--surface2);color:var(--text2);font-weight:500;font-size:12px;}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#1E1E22;color:#fff;padding:11px 18px;border-radius:24px;font-size:13px;opacity:0;transition:all .3s;z-index:50;white-space:nowrap;}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+.demo-flag{background:#FFF0D6;color:#8a5a00;font-size:11px;padding:4px 10px;border-radius:6px;}
+
+@media(max-width:720px){
+  .steps{grid-template-columns:repeat(2,1fr);}
+  .stat-bar{grid-template-columns:repeat(2,1fr);}
+  .role-grid{grid-template-columns:repeat(2,1fr);}
+  .lb-avg{display:none;}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <span style="font-size:26px">🍺</span>
+    <div class="tb-title"><h1>OpsChain</h1><div class="tb-sub">Beer Game · 채찍 효과를 체험하라</div></div>
+    <span class="badge">Module 2</span>
+    <span class="demo-flag hidden" id="demo-flag">체험 모드</span>
+    <a href="../index.html" class="hub-link" id="hub-link">🏠 허브</a>
+  </div>
+
+  <!-- ══ 로그인 ══ -->
+  <div class="screen" id="s-login">
+    <div class="hero">
+      <span class="emo">🍺</span>
+      <h2>Beer Game</h2>
+      <p>네 명이 한 팀이 되어 맥주 공급망을 운영합니다.<br>고객 수요는 조금씩 움직일 뿐인데, 공장까지 가면 왜 주문이 요동칠까요?</p>
+    </div>
+    <div class="card" style="max-width:420px;margin:0 auto 14px;">
+      <div class="field"><label>수업 코드</label><input id="in-code" placeholder="예) test0" maxlength="24" autocomplete="off"></div>
+      <div class="field"><label>이름 (실명)</label><input id="in-name" placeholder="예) 김민준" maxlength="12" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button class="btn-p" onclick="doLogin()">들어가기</button>
+      <div class="msg" id="login-msg"></div>
+    </div>
+  </div>
+
+  <!-- ══ 게임 준비 전 ══ -->
+  <div class="screen" id="s-nogame">
+    <div class="waitbox" style="margin-top:20px;">
+      <div class="t"><span class="spin">⏳</span> 아직 게임이 열리지 않았습니다</div>
+      <div class="s">교수자가 게임을 만들면 이 화면이 자동으로 바뀝니다.</div>
+    </div>
+  </div>
+
+  <!-- ══ 팀·역할 선택 ══ -->
+  <div class="screen" id="s-join">
+    <div class="card">
+      <div class="card-title">① 우리 팀 번호를 고르세요</div>
+      <div class="team-grid" id="team-grid"></div>
+    </div>
+    <div class="card" id="role-card" style="display:none;">
+      <div class="card-title">② 내 역할을 고르세요 — <span id="role-team" style="color:var(--navy);font-weight:700;"></span></div>
+      <div class="role-grid" id="role-grid"></div>
+      <div class="info" style="margin:12px 0 12px;">3명인 팀은 한 사람이 <b>Distributor + Wholesaler</b>를 함께 맡습니다. 매주 두 단계의 발주를 각각 결정합니다.</div>
+      <button class="btn-p" id="join-btn" onclick="joinSeat()" disabled>이 역할로 참가</button>
+      <div class="msg" id="join-msg"></div>
+    </div>
+  </div>
+
+  <!-- ══ 대기실 ══ -->
+  <div class="screen" id="s-lobby">
+    <div class="card">
+      <div class="card-title">👥 <span id="lobby-team"></span></div>
+      <div class="chain" id="lobby-chain"></div>
+      <div class="msg" id="lobby-msg" style="font-size:13px;text-align:center;margin-top:12px;"></div>
+      <div style="text-align:center;margin-top:6px;"><button class="btn-s" id="leave-btn" onclick="leaveSeat()">팀·역할 다시 고르기</button></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 게임 규칙</div>
+      <div class="rules" id="rules"></div>
+    </div>
+  </div>
+
+  <!-- ══ 게임 ══ -->
+  <div class="screen" id="s-play">
+    <div class="prog" id="prog"></div>
+    <div class="stat-bar">
+      <div class="sc"><div class="lb">주차</div><div class="vl" id="st-week">-</div></div>
+      <div class="sc"><div class="lb">내 누적 비용</div><div class="vl" id="st-my">-</div></div>
+      <div class="sc"><div class="lb">팀 누적 비용</div><div class="vl" id="st-team">-</div></div>
+      <div class="sc"><div class="lb">팀 순위</div><div class="vl" id="st-rank">-</div></div>
+    </div>
+    <div class="card" style="padding:12px;">
+      <div class="chain" id="play-chain"></div>
+    </div>
+    <div id="decide"></div>
+    <div class="card">
+      <div class="card-title">🏆 실시간 팀 순위 <span style="font-weight:400;font-size:11px;color:var(--text3);">비용이 낮을수록 위 · 진행 주차가 다르면 주당 평균 비용으로 비교</span></div>
+      <div id="lb"></div>
+      <div id="role-rank" style="font-size:12px;color:var(--text2);margin-top:10px;"></div>
+    </div>
+    <div class="card" id="ledger-card">
+      <div class="card-title">📒 내 장부</div>
+      <div id="ledger"></div>
+    </div>
+    <details class="card lg">
+      <summary>📋 규칙 다시 보기</summary>
+      <div class="rules" id="rules2" style="margin-top:10px;"></div>
+    </details>
+  </div>
+
+  <!-- ══ 최종 ══ -->
+  <div class="screen" id="s-final">
+    <div class="card">
+      <div class="final-top">
+        <div class="k" id="f-team"></div>
+        <div class="v" id="f-cost"></div>
+        <div class="k">팀 순위 <b id="f-rank" style="color:var(--navy);font-size:17px;"></b> · 내 비용 <b id="f-my"></b></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📈 우리 팀의 주문 — 고객 수요와 비교해 보세요</div>
+      <div id="f-chart"></div>
+      <table class="sd-table" id="f-sd"></table>
+    </div>
+    <div class="card">
+      <div class="card-title">📦 순재고 (재고 − 밀린 주문)</div>
+      <div id="f-inv"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🎓 학습 정리</div>
+      <div class="info" style="margin:0;" id="f-learn"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">🏆 최종 팀 순위</div>
+      <div id="f-lb"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📒 내 장부</div>
+      <div id="f-ledger"></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════ Beer Game 공통 엔진 (학생·강사 화면 공용) ══════════ */
+const FB_CONFIG = {
+  apiKey: "AIzaSyCgBJ6yt9_TrK7AlgTKhEth7Qt2QdCYADc",
+  authDomain: "newsvendor-game-simulation.firebaseapp.com",
+  databaseURL: "https://newsvendor-game-simulation-default-rtdb.firebaseio.com",
+  projectId: "newsvendor-game-simulation",
+  storageBucket: "newsvendor-game-simulation.firebasestorage.app",
+  messagingSenderId: "213354360321",
+  appId: "1:213354360321:web:4dc63514cc19ba6019da00"
+};
+const FB_VER = '12.13.0';
+
+/* 공급망: 고객 ← Retailer ← Distributor ← Wholesaler ← Factory */
+const ROLES = ['R', 'D', 'W', 'F'];
+const ROLE = {
+  R: { en: 'Retailer',    ko: '소매상',   icon: '🏪', color: '#2A9D5C' },
+  D: { en: 'Distributor', ko: '유통업체', icon: '🚚', color: '#7C4DBE' },
+  W: { en: 'Wholesaler',  ko: '도매상',   icon: '🏬', color: '#E0A21B' },
+  F: { en: 'Factory',     ko: '공장',     icon: '🏭', color: '#D6474A' }
+};
+const DEMAND_COLOR = '#1B5FA8';
+
+/* 교수자용 수요 카드(Demand 인쇄 파일) 1~24주 */
+const DEFAULT_DEMAND = [4, 4, 8, 8, 9, 5, 6, 7, 6, 6, 9, 9, 7, 4, 4, 6, 6, 9, 5, 6, 6, 7, 7, 6];
+
+/* initInv : 시작 재고 (엑셀 factory 시트 12, 나머지 시트 8)
+   pipeline: 게임 시작 때 이미 오고 있는 물량·이미 받아 둔 주문 (매 칸 4개)
+   orderDelay: 주문이 상류에 도착하는 데 걸리는 주 / shipDelay: 출고한 물건이 하류에 도착하는 데 걸리는 주
+   hold·back: 주당 비용 (만원) */
+const DEFAULT_CFG = {
+  teams: 18, demand: DEFAULT_DEMAND,
+  initInv: { R: 8, D: 8, W: 8, F: 12 },
+  pipeline: 4, orderDelay: 1, shipDelay: 1,
+  hold: 5, back: 10, released: 0
+};
+
+function normCfg(c) {
+  if (!c) return null;
+  const toArr = d => Array.isArray(d) ? d.filter(v => v != null).map(Number)
+                   : d && typeof d === 'object' ? Object.keys(d).sort((a, b) => a - b).map(k => Number(d[k])) : DEFAULT_DEMAND.slice();
+  const ii = c.initInv || {};
+  return {
+    ...DEFAULT_CFG, ...c,
+    demand: toArr(c.demand),
+    initInv: { R: +(ii.R ?? 8), D: +(ii.D ?? 8), W: +(ii.W ?? 8), F: +(ii.F ?? 12) },
+    pipeline: +(c.pipeline ?? 4), orderDelay: Math.max(1, +(c.orderDelay ?? 1)), shipDelay: Math.max(1, +(c.shipDelay ?? 1)),
+    hold: +(c.hold ?? 5), back: +(c.back ?? 10), released: +(c.released ?? 0), teams: +(c.teams ?? 18)
+  };
+}
+
+/* RTDB는 숫자 키 객체를 배열로 돌려줄 때가 있어 둘 다 처리 */
+const getOrder = (team, r, w) => {
+  const o = team && team.orders && team.orders[r];
+  const v = o ? o[w] : null;
+  return v == null ? null : Number(v);
+};
+
+/* ══ 한 팀 시뮬레이션 — 엑셀 장부 계산식 그대로 ══
+   (1) 입고  (2) 출고 전 재고 = (1) + 지난주 (7)
+   (3) 주문(수요)  (4) 총 수요 = (3) + 지난주 (6)
+   (5) 출고 = min((2), (4))  (6) 밀린 주문 = (4) − (5)  (7) 출고 후 재고 = (2) − (5)  (8) 발주
+   주간 비용 = hold × (7) + back × (6) */
+function simTeam(cfg, team) {
+  const W = cfg.demand.length, Lo = cfg.orderDelay, Ls = cfg.shipDelay, P = cfg.pipeline;
+  let done = 0;
+  while (done < W && ROLES.every(r => getOrder(team, r, done + 1) != null)) done++;
+  const cur = done < W ? done + 1 : null;
+  const open = cur != null && cur <= cfg.released;      // 이번 주를 진행할 수 있나
+  const until = open ? cur : done;
+  const st = ROLES.map(r => ({ role: r, rows: [], inv: cfg.initInv[r], back: 0, cum: 0 }));
+  const ship = ROLES.map(() => []);
+  for (let w = 1; w <= until; w++) {
+    ROLES.forEach((r, s) => {
+      const S = st[s];
+      const recv = s < 3 ? (w - Ls >= 1 ? ship[s + 1][w - Ls] : P)
+                         : (w - Lo - Ls >= 1 ? getOrder(team, 'F', w - Lo - Ls) : P);
+      const dem  = s === 0 ? cfg.demand[w - 1] : (w - Lo >= 1 ? getOrder(team, ROLES[s - 1], w - Lo) : P);
+      const invB = S.inv + recv, tot = dem + S.back;
+      const sh = Math.min(invB, tot), bk = tot - sh, invA = invB - sh;
+      ship[s][w] = sh;
+      const cost = cfg.hold * invA + cfg.back * bk;
+      const order = getOrder(team, r, w);
+      S.rows.push({ w, recv, invB, dem, tot, ship: sh, back: bk, invA, order, cost, hc: cfg.hold * invA, bc: cfg.back * bk });
+      S.inv = invA; S.back = bk;
+      if (w <= done) S.cum += cost;
+    });
+  }
+  const teamCost = st.reduce((a, S) => a + S.cum, 0);
+  return { W, done, cur, open, finished: done === W, stages: st, teamCost, avg: done ? teamCost / done : 0 };
+}
+
+/* 봇 발주 규칙: 이번 주 주문량 + (목표 재고 − 순재고)의 절반. 이미 주문해 둔 물량은 고려하지 않음 → 평범한 사람처럼 출렁임 */
+function botOrder(cfg, row, role) {
+  const target = cfg.initInv[role];
+  return Math.max(0, Math.min(60, Math.round(row.dem + 0.5 * (target - (row.invA - row.back)))));
+}
+
+/* 팀 순위: 끝난 주의 주당 평균 비용이 낮은 순 (진행 주차가 달라도 공정하게). 모두 끝나면 총비용 순과 같음 */
+function rankTeams(cfg, teams) {
+  const list = [];
+  for (let t = 1; t <= cfg.teams; t++) {
+    const team = teams && teams[t];
+    const seats = (team && team.seats) || {};
+    if (!Object.keys(seats).length) continue;
+    const sim = simTeam(cfg, team);
+    list.push({ t, sim, seats, done: sim.done, cost: sim.teamCost, avg: sim.avg });
+  }
+  const played = list.filter(x => x.done > 0).sort((a, b) => a.avg - b.avg || b.done - a.done);
+  played.forEach((x, i) => x.rank = i + 1);
+  const waiting = list.filter(x => x.done === 0);
+  return { played, waiting, all: [...played, ...waiting] };
+}
+
+const stdev = a => { if (a.length < 2) return 0; const m = a.reduce((s, v) => s + v, 0) / a.length; return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - 1)); };
+const man = n => `${Math.round(n).toLocaleString()}만원`;
+const esc = s => String(s ?? '').replace(/[&<>"'`]/g, c => '&#' + c.charCodeAt(0) + ';');
+const $ = id => document.getElementById(id);
+
+/* ══ 주문 그래프 (SVG) — 고객 수요 + 역할별 발주 ══ */
+function orderChart(cfg, sim, opt = {}) {
+  const W = cfg.demand.length, n = Math.max(1, opt.weeks ?? sim.done);
+  const series = [{ name: '고객 수요', color: DEMAND_COLOR, data: cfg.demand.slice(0, n), dash: '5 4' }];
+  ROLES.forEach((r, s) => series.push({ name: `${ROLE[r].en}`, color: ROLE[r].color, data: sim.stages[s].rows.slice(0, n).map(x => x.order ?? null) }));
+  return lineChart(series, W, opt);
+}
+function netInvChart(cfg, sim, opt = {}) {
+  const W = cfg.demand.length, n = sim.done;
+  const series = ROLES.map((r, s) => ({ name: ROLE[r].en, color: ROLE[r].color, data: sim.stages[s].rows.slice(0, n).map(x => x.invA - x.back) }));
+  return lineChart(series, W, { ...opt, zero: true });
+}
+function lineChart(series, W, opt = {}) {
+  const w = opt.w || 640, h = opt.h || 260, pl = 36, pr = 12, pt = 14, pb = 44;
+  const vals = series.flatMap(s => s.data.filter(v => v != null));
+  let lo = Math.min(0, ...vals), hi = Math.max(10, ...vals);
+  const step = hi - lo > 80 ? 20 : hi - lo > 40 ? 10 : 5;
+  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+  const X = i => pl + (w - pl - pr) * (i) / Math.max(1, W - 1);
+  const Y = v => pt + (h - pt - pb) * (1 - (v - lo) / (hi - lo || 1));
+  let g = '';
+  for (let v = lo; v <= hi; v += step) g += `<line x1="${pl}" x2="${w - pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v === 0 ? '#bbb' : '#eee'}"/><text x="${pl - 6}" y="${Y(v) + 4}" font-size="10" text-anchor="end" fill="#999">${v}</text>`;
+  for (let i = 0; i < W; i++) if ((i + 1) % 4 === 0 || i === 0) g += `<text x="${X(i)}" y="${h - pb + 16}" font-size="10" text-anchor="middle" fill="#999">${i + 1}</text>`;
+  g += `<text x="${pl - 6}" y="${h - pb + 16}" font-size="10" text-anchor="end" fill="#999">주</text>`;
+  series.forEach(s => {
+    const pts = s.data.map((v, i) => v == null ? null : `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean);
+    if (pts.length) g += `<polyline points="${pts.join(' ')}" fill="none" stroke="${s.color}" stroke-width="${s.dash ? 2.4 : 2}" ${s.dash ? `stroke-dasharray="${s.dash}"` : ''} stroke-linejoin="round" stroke-linecap="round"/>`;
+  });
+  let lx = pl, lg = '';
+  series.forEach(s => { lg += `<rect x="${lx}" y="${h - 12}" width="12" height="3" fill="${s.color}"/><text x="${lx + 16}" y="${h - 8}" font-size="10.5" fill="#555">${esc(s.name)}</text>`; lx += 24 + [...s.name].reduce((a, ch) => a + (ch.charCodeAt(0) > 255 ? 11 : 6.2), 0); });
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px;display:block;margin:0 auto;" font-family="Noto Sans KR, sans-serif">${g}${lg}</svg>`;
+}
+
+/* ══ DB 어댑터 — 실제는 Firebase, ?demo 는 이 브라우저 안의 가짜 DB(탭끼리 공유) ══ */
+const DEMO = new URLSearchParams(location.search).has('demo');
+const DB = {
+  m: null, db: null, app: null,
+  async init() {
+    if (DEMO) { Mock.init(); return; }
+    const A = await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-app.js`);
+    this.m = await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-database.js`);
+    this.app = A.initializeApp(FB_CONFIG);
+    this.db = this.m.getDatabase(this.app);
+  },
+  r(p) { return this.m.ref(this.db, p); },
+  async get(p) { return DEMO ? Mock.get(p) : (await this.m.get(this.r(p))).val(); },
+  async set(p, v) { return DEMO ? Mock.set(p, v) : this.m.set(this.r(p), v); },
+  async update(p, obj) { return DEMO ? Mock.update(p, obj) : this.m.update(this.r(p), obj); },
+  /* 비어 있는 자리에만 쓰기 (실제 DB에서는 보안 규칙이 막아 줌) */
+  async create(p, obj) { return DEMO ? Mock.update(p, obj, true) : this.m.update(this.r(p), obj); },
+  async remove(p) { return DEMO ? Mock.set(p, null) : this.m.remove(this.r(p)); },
+  listen(p, cb) { return DEMO ? Mock.listen(p, cb) : this.m.onValue(this.r(p), s => cb(s.val())); }
+};
+
+/* 체험 모드 저장소: 값 하나마다 localStorage 키 하나 → 여러 탭이 동시에 써도 서로 덮어쓰지 않음 */
+const Mock = {
+  pre: 'bgDemo:', subs: [],
+  init() {
+    if (this.get('leaderboard/classes/demo') == null) this.put('leaderboard/classes/demo/name', '체험용 수업');
+    window.addEventListener('storage', e => { if (e.key && e.key.startsWith(this.pre)) this.fire(); });
+  },
+  norm: p => p.split('/').filter(Boolean).join('/'),
+  tree() {
+    const t = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k.startsWith(this.pre)) continue;
+      const ks = k.slice(this.pre.length).split('/'); let n = t;
+      ks.slice(0, -1).forEach(x => { if (!n[x] || typeof n[x] !== 'object') n[x] = {}; n = n[x]; });
+      n[ks[ks.length - 1]] = JSON.parse(localStorage.getItem(k));
+    }
+    return t;
+  },
+  get(p) { let n = this.tree(); for (const k of this.norm(p).split('/')) { if (n == null || typeof n !== 'object') return null; n = n[k]; } return n === undefined ? null : n; },
+  clear(p) {
+    const q = this.pre + this.norm(p), del = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k === q || k.startsWith(q + '/')) del.push(k); }
+    del.forEach(k => localStorage.removeItem(k));
+  },
+  put(p, v) {
+    p = this.norm(p); this.clear(p);
+    if (v == null) return;
+    if (typeof v === 'object') { Object.entries(v).forEach(([k, x]) => this.put(p + '/' + k, x)); return; }
+    localStorage.setItem(this.pre + p, JSON.stringify(v));
+  },
+  set(p, v) { this.put(p, v); this.fire(); return Promise.resolve(); },
+  update(p, obj, onlyNew) {
+    if (onlyNew && Object.keys(obj).some(k => this.get(p + '/' + k) != null)) return Promise.reject(new Error('PERMISSION_DENIED'));
+    Object.entries(obj).forEach(([k, v]) => this.put(p + '/' + k, v));
+    this.fire(); return Promise.resolve();
+  },
+  listen(p, cb) { const s = { p, cb }; this.subs.push(s); setTimeout(() => cb(this.get(p)), 0); return () => { this.subs = this.subs.filter(x => x !== s); }; },
+  fire() { clearTimeout(this.h); this.h = setTimeout(() => this.subs.forEach(s => s.cb(this.get(s.p))), 30); }
+};
+
+
+/* ══════════ 학생 화면 ══════════ */
+const LS_KEY = 'opsquest_user';
+let user = null;          // { code, className, name, nick }
+let G = null;             // beergame/{code} 전체
+let cfg = null, unsub = null;
+let selTeam = null, selRole = null;
+let lastKey = '', lastDone = null, draft = {};
+
+const show = id => document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove('on'), 3200); }
+const roleLabel = r => `${ROLE[r].icon} ${ROLE[r].en}`;
+
+/* ══ 로그인: 허브와 같은 계정 정보 사용 ══ */
+async function doLogin() {
+  const code = DEMO ? 'demo' : $('in-code').value.trim();
+  const name = $('in-name').value.replace(/\s+/g, '');
+  const msg = $('login-msg');
+  const err = t => { msg.className = 'msg err'; msg.textContent = t; };
+  if (!code) return err('수업 코드를 입력해 주세요.');
+  if (!name) return err('이름을 입력해 주세요.');
+  if (/[.#$\[\]\/]/.test(name)) return err('이름에 . # $ [ ] / 는 쓸 수 없습니다.');
+  msg.className = 'msg'; msg.textContent = '확인 중...';
+  try {
+    const cls = await DB.get('leaderboard/classes/' + code);
+    if (!cls) return err('❌ 유효하지 않은 수업 코드입니다.');
+    if (!DEMO && !(await DB.get(`roster/${code}/${name}`))) return err(`❌ '${name}'은(는) 이 수업 명단에 없습니다. 띄어쓰기 없이 실명을 입력했는지 확인해 주세요.`);
+    let nick = name;
+    try { const old = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); if (old && old.code === code && old.name === name && old.nick) nick = old.nick; } catch {}
+    user = { code, className: cls.name || code, name, nick };
+    if (DEMO) sessionStorage.setItem('bgDemoUser', JSON.stringify(user));   // 체험 모드: 탭마다 다른 학생
+    else localStorage.setItem(LS_KEY, JSON.stringify(user));
+    enter();
+  } catch (e) { err('오류가 발생했습니다. 다시 시도해 주세요.'); }
+}
+
+function enter() {
+  if (unsub) unsub();
+  unsub = DB.listen(`beergame/${user.code}`, v => { G = v; render(); });
+}
+
+/* ══ 화면 분기 ══ */
+function mySeat(teams) {
+  for (const [t, team] of Object.entries(teams || {})) {
+    if (!team || !team.seats) continue;
+    const roles = ROLES.filter(r => team.seats[r] && team.seats[r].name === user.name);
+    if (roles.length) return { t: +t, roles };
+  }
+  return null;
+}
+
+function render() {
+  if (!G || !G.config) { show('s-nogame'); return; }
+  cfg = normCfg(G.config);
+  const teams = G.teams || {};
+  const seat = mySeat(teams);
+  if (!seat) { renderJoin(teams); show('s-join'); return; }
+  const team = teams[seat.t];
+  const full = ROLES.every(r => team.seats && team.seats[r]);
+  const sim = simTeam(cfg, team);
+  if (!full || (cfg.released === 0 && sim.done === 0)) { renderLobby(seat, team, full, sim); show('s-lobby'); return; }
+  if (sim.finished) { renderFinal(seat, team, sim, teams); show('s-final'); return; }
+  renderPlay(seat, team, sim, teams);
+  show('s-play');
+}
+
+/* ══ 팀·역할 선택 ══ */
+function renderJoin(teams) {
+  $('team-grid').innerHTML = Array.from({ length: cfg.teams }, (_, i) => {
+    const t = i + 1, seats = (teams[t] && teams[t].seats) || {};
+    const dots = ROLES.map(r => `<span class="dot${seats[r] ? ' on' : ''}" style="${seats[r] ? 'background:' + ROLE[r].color : ''}" title="${ROLE[r].en}"></span>`).join('');
+    return `<button class="tbtn${selTeam === t ? ' sel' : ''}" onclick="pickTeam(${t})"><div class="tn">${t}조</div><div class="dots">${dots}</div></button>`;
+  }).join('');
+  if (!selTeam) { $('role-card').style.display = 'none'; return; }
+  $('role-card').style.display = 'block';
+  $('role-team').textContent = `${selTeam}조`;
+  const seats = (teams[selTeam] && teams[selTeam].seats) || {};
+  const opts = [...ROLES.map(r => ({ id: r, roles: [r] })), { id: 'DW', roles: ['D', 'W'] }];
+  if (selRole && opts.find(o => o.id === selRole).roles.some(r => seats[r])) selRole = null;
+  $('role-grid').innerHTML = opts.map(o => {
+    const taken = o.roles.filter(r => seats[r]);
+    const who = taken.map(r => esc(seats[r].nick || seats[r].name)).join(', ');
+    const isDW = o.id === 'DW';
+    return `<button class="rbtn${selRole === o.id ? ' sel' : ''}" ${taken.length ? 'disabled' : ''} onclick="pickRole('${o.id}')">
+      <span class="ic">${isDW ? '🚚🏬' : ROLE[o.id].icon}</span>
+      <div class="en">${isDW ? 'Dist. + Whole.' : ROLE[o.id].en}</div>
+      <div class="ko">${isDW ? '3인 팀용' : ROLE[o.id].ko}</div>
+      <div class="who">${taken.length ? who : '비어 있음'}</div></button>`;
+  }).join('');
+  $('join-btn').disabled = !selRole;
+}
+function pickTeam(t) { selTeam = t; selRole = null; render(); }
+function pickRole(r) { selRole = r; render(); }
+
+async function joinSeat() {
+  if (!selTeam || !selRole) return;
+  const roles = selRole === 'DW' ? ['D', 'W'] : [selRole];
+  const obj = {};
+  roles.forEach(r => obj['seats/' + r] = { name: user.name, nick: user.nick || user.name, ts: Date.now() });
+  $('join-btn').disabled = true;
+  try {
+    if (mySeat(G && G.teams)) throw new Error('already');
+    await DB.create(`beergame/${user.code}/teams/${selTeam}`, obj);
+  } catch (e) {
+    $('join-msg').className = 'msg err';
+    $('join-msg').textContent = '방금 다른 사람이 그 자리를 골랐습니다. 다른 역할을 골라 주세요.';
+    selRole = null; render();
+  }
+}
+
+/* ══ 대기실 ══ */
+function chainHtml(team, myRoles, week) {
+  const node = r => {
+    const s = team.seats && team.seats[r];
+    const me = myRoles.includes(r);
+    let stt = '';
+    if (week != null) stt = getOrder(team, r, week) != null ? '<span style="color:var(--green)">✓ 발주 완료</span>' : '<span style="color:var(--text3)">⏳ 결정 중</span>';
+    return `<div class="ch-node${me ? ' me' : ''}"><div class="ic">${ROLE[r].icon}</div><div class="en">${ROLE[r].en}</div>
+      <div class="nm">${s ? esc(s.nick || s.name) + (me ? ' (나)' : '') : '<span style="color:var(--red)">비어 있음</span>'}</div>${stt ? `<div class="stt">${stt}</div>` : ''}</div>`;
+  };
+  const cust = `<div class="ch-node" style="background:var(--surface2);"><div class="ic">🙂</div><div class="en">Customer</div><div class="nm">교수자</div></div>`;
+  return [cust, ...ROLES.map(node)].join('<div class="ch-arrow">←</div>');
+}
+function rulesHtml() {
+  return `
+    <div class="ri">📦 <span>매주 <b>① 입고 확인 → ② 주문 확인 → ③ 출고 → ④ 발주</b> 순서로 진행합니다. ①~③은 자동으로 계산되고, 여러분은 <b>④ 발주량</b>만 정합니다.</span></div>
+    <div class="ri">⏱️ <span>내가 낸 주문은 <b>${cfg.orderDelay}주 뒤</b> 위 단계에 도착하고, 위 단계가 보낸 물건은 다시 <b>${cfg.shipDelay}주 뒤</b>에 들어옵니다. 공장의 생산도 같은 시간이 걸립니다.</span></div>
+    <div class="ri">📑 <span>받은 주문은 반드시 채워야 합니다. 재고가 모자라면 <b>밀린 주문</b>으로 남아 다음 주에 먼저 보냅니다.</span></div>
+    <div class="ri">💰 <span>재고는 1개당 주 <b>${cfg.hold}만원</b>, 밀린 주문은 1개당 주 <b>${cfg.back}만원</b>의 비용이 듭니다. 팀 전체 비용이 낮을수록 순위가 높습니다.</span></div>
+    <div class="ri">🤐 <span>팀원끼리 수요나 재고를 이야기할 수 없습니다. 오가는 정보는 <b>주문량</b>뿐입니다. 고객 수요는 Retailer만 봅니다.</span></div>
+    <div class="ri">🏁 <span>시작 재고는 Retailer·Distributor·Wholesaler ${cfg.initInv.R}·${cfg.initInv.D}·${cfg.initInv.W}개, Factory ${cfg.initInv.F}개입니다. 총 ${cfg.demand.length}주를 진행합니다.</span></div>`;
+}
+function renderLobby(seat, team, full, sim) {
+  $('lobby-team').textContent = `${seat.t}조 · 내 역할: ${seat.roles.map(roleLabel).join(' + ')}`;
+  $('lobby-chain').innerHTML = chainHtml(team, seat.roles, null);
+  $('lobby-msg').innerHTML = !full
+    ? '<span class="spin">⏳</span> 팀원이 모두 들어오기를 기다리는 중입니다. 3명인 팀은 한 사람이 Distributor + Wholesaler를 맡아 주세요.'
+    : '<span class="spin">⏳</span> 팀이 모두 모였습니다. 교수자가 1주차를 시작하면 바로 진행됩니다.';
+  $('leave-btn').style.display = team.orders ? 'none' : 'inline-block';
+  $('rules').innerHTML = rulesHtml();
+}
+async function leaveSeat() {
+  const seat = mySeat(G.teams);
+  if (!seat) return;
+  const obj = {}; seat.roles.forEach(r => obj['seats/' + r] = null);
+  try { await DB.update(`beergame/${user.code}/teams/${seat.t}`, obj); selTeam = seat.t; selRole = null; }
+  catch { alert('게임이 이미 시작되어 자리를 바꿀 수 없습니다. 교수자에게 말씀해 주세요.'); }
+}
+
+/* ══ 게임 ══ */
+function renderPlay(seat, team, sim, teams) {
+  const W = sim.W, cur = sim.cur;
+  const myCost = seat.roles.reduce((a, r) => a + sim.stages[ROLES.indexOf(r)].cum, 0);
+  const rk = rankTeams(cfg, teams);
+  const mine = rk.played.find(x => x.t === seat.t);
+
+  if (lastDone != null && sim.done > lastDone) {
+    const wc = seat.roles.reduce((a, r) => a + sim.stages[ROLES.indexOf(r)].rows[sim.done - 1].cost, 0);
+    toast(`✅ ${sim.done}주차 마감 · 이번 주 내 비용 ${man(wc)}`);
+  }
+  lastDone = sim.done;
+
+  $('prog').innerHTML = Array.from({ length: W }, (_, i) => `<i class="${i < sim.done ? 'done' : i === sim.done ? 'cur' : ''}"></i>`).join('');
+  $('st-week').textContent = `${cur} / ${W}주`;
+  $('st-my').textContent = man(myCost);
+  $('st-team').textContent = man(sim.teamCost);
+  $('st-rank').textContent = mine ? `${mine.rank}위 / ${rk.played.length}팀` : '-';
+  $('play-chain').innerHTML = chainHtml(team, seat.roles, sim.open ? cur : null);
+
+  const submitted = seat.roles.map(r => getOrder(team, r, cur) != null);
+  const key = [seat.t, seat.roles.join(''), cur, sim.open, submitted.join()].join('|');
+  if (key !== lastKey) {
+    lastKey = key;
+    $('decide').innerHTML = decideHtml(seat, team, sim, submitted);
+    $('ledger').innerHTML = seat.roles.map(r => ledgerHtml(r, sim, seat.roles.length > 1)).join('');
+    $('rules2').innerHTML = rulesHtml();
+    const first = document.querySelector('#decide input');
+    if (first && window.innerWidth > 720) first.focus();
+  } else if (!sim.open || submitted.every(Boolean)) {
+    const wl = $('wait-list');
+    if (wl) wl.innerHTML = waitingWho(team, cur);
+  }
+  $('lb').innerHTML = lbHtml(rk, seat.t, false);
+  $('role-rank').innerHTML = roleRankHtml(rk, seat);
+}
+
+function waitingWho(team, cur) {
+  const left = ROLES.filter(r => getOrder(team, r, cur) == null);
+  return left.length ? `아직 결정 중: ${left.map(r => `<b>${ROLE[r].en}</b>`).join(', ')}` : '모두 제출했습니다. 다음 주로 넘어갑니다…';
+}
+
+function decideHtml(seat, team, sim, submitted) {
+  const cur = sim.cur;
+  if (!sim.open) {
+    return `<div class="waitbox"><div class="t"><span class="spin">⏳</span> ${cur}주차 시작을 기다리는 중</div>
+      <div class="s">교수자가 ${cur}주차 고객 수요를 공개하면 바로 진행됩니다.</div></div>`;
+  }
+  if (submitted.every(Boolean)) {
+    const mine = seat.roles.map(r => `${ROLE[r].en} <b>${getOrder(team, r, cur)}개</b>`).join(' · ');
+    return `<div class="waitbox"><div class="t">✅ ${cur}주차 발주 완료</div>
+      <div class="s">${mine}<br><span id="wait-list">${waitingWho(team, cur)}</span></div></div>`;
+  }
+  const panels = seat.roles.map(r => {
+    const s = ROLES.indexOf(r), row = sim.stages[s].rows[cur - 1];
+    const prev = sim.stages[s].rows[cur - 2];
+    const prevInv = prev ? prev.invA : cfg.initInv[r], prevBack = prev ? prev.back : 0;
+    const isR = r === 'R', isF = r === 'F';
+    const v = draft[r] ?? '';
+    return `<div class="dec">
+      <div class="dec-h"><span style="font-size:22px">${ROLE[r].icon}</span>${ROLE[r].en} <span style="font-weight:400;color:var(--text2);font-size:13px;">${ROLE[r].ko}</span>
+        <span class="tag" style="background:${ROLE[r].color};margin-left:auto;">${cur}주차</span></div>
+      <div class="steps">
+        <div class="step"><div class="no">① ${isF ? '생산 완료 입고' : '입고 (물건 받기)'}</div>
+          <div class="big">${row.recv}<small>개</small></div>
+          <div class="sub">지난주 재고 ${prevInv} + 입고 ${row.recv}<br>= 출고 전 재고 <b>${row.invB}개</b></div></div>
+        <div class="step"><div class="no">② ${isR ? '고객 수요 확인' : '주문 받기'}</div>
+          <div class="big">${row.dem}<small>개</small></div>
+          <div class="sub">${prevBack ? `<span class="bad">밀린 주문 ${prevBack}개</span> 포함<br>` : '밀린 주문 없음<br>'}총 수요 <b>${row.tot}개</b></div></div>
+        <div class="step"><div class="no">③ 출고 (${isR ? '고객에게' : '아래 단계로'})</div>
+          <div class="big">${row.ship}<small>개</small></div>
+          <div class="sub">남은 재고 <b>${row.invA}개</b><br>${row.back ? `<span class="bad">밀린 주문 ${row.back}개</span>` : '밀린 주문 0개'}</div></div>
+        <div class="step order"><div class="no">④ ${isF ? '생산 지시' : '발주 (위 단계에 주문)'}</div>
+          <div class="ord-row">
+            <button onclick="bump('${r}',-1)">−</button>
+            <input type="number" inputmode="numeric" min="0" max="999" id="ord-${r}" value="${v}" placeholder="?" oninput="draft['${r}']=this.value" onkeydown="if(event.key==='Enter')submitOrder()">
+            <button onclick="bump('${r}',1)">+</button>
+          </div>
+          <div class="sub">${isF ? `${cfg.orderDelay + cfg.shipDelay}주 뒤 완성` : `${cfg.orderDelay + cfg.shipDelay}주 뒤 도착 예상 (위 단계 재고가 있을 때)`}</div></div>
+      </div>
+      <div class="wk-cost">이번 주 비용: 재고 ${row.invA}개 × ${cfg.hold} + 밀린 주문 ${row.back}개 × ${cfg.back} = <b>${man(row.cost)}</b></div>
+    </div>`;
+  }).join('');
+  return panels + `<button class="btn-p" id="sub-btn" onclick="submitOrder()" style="margin-bottom:14px;">${cur}주차 ${seat.roles.length > 1 ? '두 단계 발주' : (seat.roles[0] === 'F' ? '생산 지시' : '발주')} 확정</button>`;
+}
+function bump(r, d) {
+  const el = $('ord-' + r); const v = Math.max(0, Math.min(999, (parseInt(el.value) || 0) + d));
+  el.value = v; draft[r] = String(v);
+}
+
+async function submitOrder() {
+  const seat = mySeat(G.teams); if (!seat) return;
+  const team = G.teams[seat.t], sim = simTeam(cfg, team);
+  if (!sim.open) return;
+  const obj = {};
+  for (const r of seat.roles) {
+    const raw = ($('ord-' + r) || {}).value;
+    const n = Number(raw);
+    if (raw === '' || raw == null || !Number.isInteger(n) || n < 0 || n > 999) {
+      alert(`${ROLE[r].en}의 발주량을 0~999 사이 정수로 입력해 주세요.`); return;
+    }
+    if (getOrder(team, r, sim.cur) == null) obj[`orders/${r}/${sim.cur}`] = n;
+  }
+  const btn = $('sub-btn'); if (btn) btn.disabled = true;
+  try {
+    await DB.create(`beergame/${user.code}/teams/${seat.t}`, obj);
+    seat.roles.forEach(r => delete draft[r]);
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    alert('제출하지 못했습니다. 이미 제출했거나 연결이 끊겼을 수 있어요. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+/* ══ 순위 ══ */
+function lbHtml(rk, myT, final) {
+  const list = rk.played;
+  if (!list.length) return '<div class="lb-empty">아직 1주차를 마친 팀이 없습니다</div>';
+  const mx = Math.max(...list.map(x => x.avg), 1);
+  const row = x => {
+    const me = x.t === myT, rc = x.rank === 1 ? 'r1' : x.rank === 2 ? 'r2' : x.rank === 3 ? 'r3' : '';
+    const md = x.rank === 1 ? '🥇' : x.rank === 2 ? '🥈' : x.rank === 3 ? '🥉' : x.rank;
+    return `<div class="lb-row${me ? ' me-row' : ''}"><div class="lb-rank ${rc}">${md}</div>
+      <div class="lb-name">${me ? '⭐ ' : ''}${x.t}조</div>
+      <div class="lb-wk">${x.sim.finished ? '<span style="color:var(--green)">완료</span>' : x.done + '주'}</div>
+      <div class="lb-bar-wrap"><div class="lb-bar" style="width:${Math.max(4, Math.round(x.avg / mx * 100))}%"></div></div>
+      <div class="lb-val">${man(x.cost)}</div><div class="lb-avg">주당 ${man(x.avg)}</div></div>`;
+  };
+  const top = final ? list : list.slice(0, 5);
+  let h = top.map(row).join('');
+  const me = list.find(x => x.t === myT);
+  if (me && !top.includes(me)) h += `<div class="lb-sep">···</div>` + row(me);
+  return h;
+}
+function roleRankHtml(rk, seat) {
+  return seat.roles.map(r => {
+    const s = ROLES.indexOf(r);
+    const arr = rk.played.map(x => ({ t: x.t, v: x.sim.stages[s].cum / x.done })).sort((a, b) => a.v - b.v);
+    const i = arr.findIndex(a => a.t === seat.t);
+    return i < 0 ? '' : `${ROLE[r].icon} 전체 ${ROLE[r].en} 중 내 순위 <b>${i + 1}위</b> / ${arr.length}명`;
+  }).filter(Boolean).join(' &nbsp;·&nbsp; ');
+}
+
+/* ══ 장부 (엑셀 양식) ══ */
+function ledgerHtml(r, sim, titled) {
+  const s = ROLES.indexOf(r), rows = sim.stages[s].rows;
+  const isR = r === 'R', isF = r === 'F';
+  let sum = 0;
+  const body = rows.map(x => {
+    const fin = x.order != null;
+    if (x.w <= sim.done) sum += x.cost;
+    return `<tr class="${fin ? '' : 'cur'}"><td>${x.w}</td><td>${x.recv}</td><td>${x.invB}</td><td>${x.dem}</td><td>${x.tot}</td><td>${x.ship}</td>
+      <td class="${x.back ? 'bk' : ''}">${x.back}</td><td>${x.invA}</td><td class="o">${fin ? x.order : '—'}</td><td>${fin ? x.cost : '-'}</td></tr>`;
+  }).join('');
+  return `${titled ? `<div style="font-weight:700;font-size:13px;margin:6px 0;">${roleLabel(r)}</div>` : ''}<div class="ledger"><table>
+    <thead><tr><th>주차</th><th>(1)<br>${isF ? '생산 입고' : '입고'}</th><th>(2)<br>출고 전 재고</th><th>(3)<br>${isR ? '고객 수요' : '주문'}</th><th>(4)<br>총 수요</th>
+      <th>(5)<br>출고</th><th>(6)<br>밀린 주문</th><th>(7)<br>출고 후 재고</th><th>(8)<br>${isF ? '생산 지시' : '발주'}</th><th>비용<br>(만원)</th></tr></thead>
+    <tbody><tr><td>0</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>${cfg.initInv[r]}</td><td>-</td><td>-</td></tr>${body}
+    <tr class="sum"><td>합계</td><td colspan="8"></td><td>${sum}</td></tr></tbody></table></div>`;
+}
+
+/* ══ 최종 ══ */
+function renderFinal(seat, team, sim, teams) {
+  if (lastKey === 'final') { $('f-lb').innerHTML = lbHtml(rankTeams(cfg, teams), seat.t, true); fRank(seat, teams); return; }
+  lastKey = 'final';
+  const myCost = seat.roles.reduce((a, r) => a + sim.stages[ROLES.indexOf(r)].cum, 0);
+  $('f-team').textContent = `${seat.t}조 · ${sim.W}주 총비용`;
+  $('f-cost').textContent = man(sim.teamCost);
+  $('f-my').textContent = `${man(myCost)} (${seat.roles.map(r => ROLE[r].en).join(' + ')})`;
+  fRank(seat, teams);
+  $('f-chart').innerHTML = orderChart(cfg, sim);
+  $('f-inv').innerHTML = netInvChart(cfg, sim, { h: 220 });
+  const base = stdev(cfg.demand);
+  $('f-sd').innerHTML = `<tr><th></th><th>주문 평균</th><th>주문 표준편차</th><th>고객 수요 대비</th></tr>
+    <tr><td style="color:${DEMAND_COLOR};font-weight:700;">고객 수요</td><td>${(cfg.demand.reduce((a, b) => a + b, 0) / cfg.demand.length).toFixed(1)}</td><td>${base.toFixed(1)}</td><td>1.0배</td></tr>` +
+    ROLES.map((r, s) => {
+      const o = sim.stages[s].rows.map(x => x.order);
+      const sd = stdev(o);
+      return `<tr${seat.roles.includes(r) ? ' style="background:var(--navy-l)"' : ''}><td style="color:${ROLE[r].color};font-weight:700;">${ROLE[r].en}</td><td>${(o.reduce((a, b) => a + b, 0) / o.length).toFixed(1)}</td><td>${sd.toFixed(1)}</td><td><b>${(sd / (base || 1)).toFixed(1)}배</b></td></tr>`;
+    }).join('');
+  const sdF = stdev(sim.stages[3].rows.map(x => x.order));
+  $('f-learn').innerHTML = `
+    <b>① 수요는 잔잔했는데 주문은 출렁였습니다.</b> 고객 수요의 표준편차는 ${base.toFixed(1)}개였지만, 우리 팀 공장의 생산 지시는 ${sdF.toFixed(1)}개였습니다. 위 단계로 갈수록 변동이 커지는 현상을 <b>채찍 효과(bullwhip effect)</b>라고 합니다.<br><br>
+    <b>② 누가 잘못해서가 아니라 구조 때문입니다.</b> 주문과 배송에 시간이 걸리고, 각자 바로 아래 단계의 주문만 보고 판단합니다. 물건이 모자라면 더 많이 주문하고, 이미 주문해 두고 아직 받지 못한 물량은 잊기 쉽습니다. 그 결과 나중에 물건이 한꺼번에 몰려 재고가 쌓입니다.<br><br>
+    <b>③ 줄이는 방법이 있습니다.</b> 고객 수요(POS) 정보를 공급망 전체가 함께 보고, 리드타임을 줄이고, 주문할 때 오고 있는 물량까지 계산하면 출렁임이 줄어듭니다. 실제 기업들이 정보 공유와 공급자 재고 관리(VMI)를 도입한 이유입니다.`;
+  $('f-ledger').innerHTML = seat.roles.map(r => ledgerHtml(r, sim, seat.roles.length > 1)).join('');
+  $('f-lb').innerHTML = lbHtml(rankTeams(cfg, teams), seat.t, true);
+}
+function fRank(seat, teams) {
+  const rk = rankTeams(cfg, teams), me = rk.played.find(x => x.t === seat.t);
+  const fin = rk.played.filter(x => x.sim.finished).length;
+  $('f-rank').textContent = me ? `${me.rank}위 / ${rk.played.length}팀` + (fin < rk.played.length ? ` (완료 ${fin}팀)` : '') : '-';
+}
+
+/* ══ 시작 ══ */
+(async function () {
+  if (DEMO) { $('demo-flag').classList.remove('hidden'); $('hub-link').classList.add('hidden'); $('in-code').value = 'demo'; $('in-code').disabled = true; }
+  try { await DB.init(); } catch (e) { $('login-msg').textContent = '서버에 연결하지 못했습니다. 새로고침해 주세요.'; show('s-login'); return; }
+  let saved = null;
+  try { saved = JSON.parse((DEMO ? sessionStorage.getItem('bgDemoUser') : localStorage.getItem(LS_KEY)) || 'null'); } catch {}
+  if (saved && saved.code && saved.name) {
+    $('in-code').value = saved.code; $('in-name').value = saved.name;
+    if (!DEMO) {
+      try {
+        const ok = (await DB.get('leaderboard/classes/' + saved.code)) && (await DB.get(`roster/${saved.code}/${saved.name}`));
+        if (ok) { user = saved; enter(); return; }
+      } catch {}
+    } else { user = saved; enter(); return; }
+  }
+  show('s-login');
+})();
+</script>
+</body>
+</html>
