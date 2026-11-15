@@ -190,8 +190,8 @@ details.lg summary{cursor:pointer;font-size:13px;font-weight:500;color:var(--tex
   <!-- ══ 게임 준비 전 ══ -->
   <div class="screen" id="s-nogame">
     <div class="waitbox" style="margin-top:20px;">
-      <div class="t"><span class="spin">⏳</span> 아직 게임이 열리지 않았습니다</div>
-      <div class="s">교수자가 게임을 만들면 이 화면이 자동으로 바뀝니다.</div>
+      <div class="t" id="nogame-t"><span class="spin">⏳</span> 아직 게임이 열리지 않았습니다</div>
+      <div class="s" id="nogame-s">교수자가 게임을 만들면 이 화면이 자동으로 바뀝니다.</div>
     </div>
   </div>
 
@@ -204,7 +204,7 @@ details.lg summary{cursor:pointer;font-size:13px;font-weight:500;color:var(--tex
     <div class="card" id="role-card" style="display:none;">
       <div class="card-title">② 내 역할을 고르세요 — <span id="role-team" style="color:var(--navy);font-weight:700;"></span></div>
       <div class="role-grid" id="role-grid"></div>
-      <div class="info" style="margin:12px 0 12px;">3명인 팀은 한 사람이 <b>Distributor + Wholesaler</b>를 함께 맡습니다. 매주 두 단계의 발주를 각각 결정합니다.</div>
+      <div class="info" style="margin:12px 0 12px;">3명인 팀은 한 사람이 <b>Distributor + Wholesaler</b>를 함께 맡습니다. 맨 오른쪽 역할을 선택하세요.</div>
       <button class="btn-p" id="join-btn" onclick="joinSeat()" disabled>이 역할로 참가</button>
       <div class="msg" id="join-msg"></div>
     </div>
@@ -226,7 +226,6 @@ details.lg summary{cursor:pointer;font-size:13px;font-weight:500;color:var(--tex
 
   <!-- ══ 게임 ══ -->
   <div class="screen" id="s-play">
-    <div class="prog" id="prog"></div>
     <div class="stat-bar">
       <div class="sc"><div class="lb">주차</div><div class="vl" id="st-week">-</div></div>
       <div class="sc"><div class="lb">내 누적 비용</div><div class="vl" id="st-my">-</div></div>
@@ -299,14 +298,19 @@ const FB_CONFIG = {
 };
 const FB_VER = '12.13.0';
 
-/* 공급망: 고객 ← Retailer ← Distributor ← Wholesaler ← Factory */
+/* 공급망: 4인 팀 고객 ← Retailer ← Distributor ← Wholesaler ← Factory
+          3인 팀 고객 ← Retailer ← Distributor+Wholesaler(M) ← Factory  (M 한 사람이 한 단계만 운영) */
 const ROLES = ['R', 'D', 'W', 'F'];
+const ALL_ROLES = ['R', 'D', 'W', 'M', 'F'];
 const ROLE = {
   R: { en: 'Retailer',    ko: '소매상',   icon: '🏪', color: '#2A9D5C' },
   D: { en: 'Distributor', ko: '유통업체', icon: '🚚', color: '#7C4DBE' },
   W: { en: 'Wholesaler',  ko: '도매상',   icon: '🏬', color: '#E0A21B' },
+  M: { en: 'Distributor + Wholesaler', short: 'Dist.+Whole.', ko: '3인 팀용', icon: '🚚🏬', color: '#3A9BB8' },
   F: { en: 'Factory',     ko: '공장',     icon: '🏭', color: '#D6474A' }
 };
+const chainOf = team => (team && team.seats && team.seats.M) ? ['R', 'M', 'F'] : ROLES;
+const stageOf = (sim, r) => sim.stages.find(S => S.role === r);
 const DEMAND_COLOR = '#1B5FA8';
 
 /* 교수자용 수요 카드(Demand 인쇄 파일) 1~24주 */
@@ -323,15 +327,23 @@ const DEFAULT_CFG = {
   hold: 5, back: 10, released: 0
 };
 
+/* endWeek: 교수자가 게임을 끝낸 주. 있으면 1~endWeek주까지만 계산하고 모든 팀이 결과 화면으로 감 */
 function normCfg(c) {
   if (!c) return null;
+  const r = normCfg0(c);
+  r.ended = !!(c.endWeek && +c.endWeek > 0);
+  r.endWeek = r.ended ? Math.min(+c.endWeek, r.demand.length) : null;
+  r.W = r.ended ? r.endWeek : r.demand.length;      // 계산에 쓰는 주 수
+  return r;
+}
+function normCfg0(c) {
   const toArr = d => Array.isArray(d) ? d.filter(v => v != null).map(Number)
                    : d && typeof d === 'object' ? Object.keys(d).sort((a, b) => a - b).map(k => Number(d[k])) : DEFAULT_DEMAND.slice();
   const ii = c.initInv || {};
   return {
     ...DEFAULT_CFG, ...c,
     demand: toArr(c.demand),
-    initInv: { R: +(ii.R ?? 8), D: +(ii.D ?? 8), W: +(ii.W ?? 8), F: +(ii.F ?? 12) },
+    initInv: { R: +(ii.R ?? 8), D: +(ii.D ?? 8), W: +(ii.W ?? 8), M: +(ii.D ?? 8), F: +(ii.F ?? 12) },   // 3인 팀 M은 Distributor 시작 재고
     pipeline: +(c.pipeline ?? 4), orderDelay: Math.max(1, +(c.orderDelay ?? 1)), shipDelay: Math.max(1, +(c.shipDelay ?? 1)),
     hold: +(c.hold ?? 5), back: +(c.back ?? 10), released: +(c.released ?? 0), teams: +(c.teams ?? 18)
   };
@@ -350,20 +362,21 @@ const getOrder = (team, r, w) => {
    (5) 출고 = min((2), (4))  (6) 밀린 주문 = (4) − (5)  (7) 출고 후 재고 = (2) − (5)  (8) 발주
    주간 비용 = hold × (7) + back × (6) */
 function simTeam(cfg, team) {
-  const W = cfg.demand.length, Lo = cfg.orderDelay, Ls = cfg.shipDelay, P = cfg.pipeline;
+  const W = cfg.W, Lo = cfg.orderDelay, Ls = cfg.shipDelay, P = cfg.pipeline;
+  const CH = chainOf(team), last = CH.length - 1;
   let done = 0;
-  while (done < W && ROLES.every(r => getOrder(team, r, done + 1) != null)) done++;
+  while (done < W && CH.every(r => getOrder(team, r, done + 1) != null)) done++;
   const cur = done < W ? done + 1 : null;
-  const open = cur != null && cur <= cfg.released;      // 이번 주를 진행할 수 있나
+  const open = !cfg.ended && cur != null && cur <= cfg.released;      // 이번 주를 진행할 수 있나
   const until = open ? cur : done;
-  const st = ROLES.map(r => ({ role: r, rows: [], inv: cfg.initInv[r], back: 0, cum: 0 }));
-  const ship = ROLES.map(() => []);
+  const st = CH.map(r => ({ role: r, rows: [], inv: cfg.initInv[r], back: 0, cum: 0 }));
+  const ship = CH.map(() => []);
   for (let w = 1; w <= until; w++) {
-    ROLES.forEach((r, s) => {
+    CH.forEach((r, s) => {
       const S = st[s];
-      const recv = s < 3 ? (w - Ls >= 1 ? ship[s + 1][w - Ls] : P)
-                         : (w - Lo - Ls >= 1 ? getOrder(team, 'F', w - Lo - Ls) : P);
-      const dem  = s === 0 ? cfg.demand[w - 1] : (w - Lo >= 1 ? getOrder(team, ROLES[s - 1], w - Lo) : P);
+      const recv = s < last ? (w - Ls >= 1 ? ship[s + 1][w - Ls] : P)
+                            : (w - Lo - Ls >= 1 ? getOrder(team, r, w - Lo - Ls) : P);
+      const dem  = s === 0 ? cfg.demand[w - 1] : (w - Lo >= 1 ? getOrder(team, CH[s - 1], w - Lo) : P);
       const invB = S.inv + recv, tot = dem + S.back;
       const sh = Math.min(invB, tot), bk = tot - sh, invA = invB - sh;
       ship[s][w] = sh;
@@ -375,7 +388,7 @@ function simTeam(cfg, team) {
     });
   }
   const teamCost = st.reduce((a, S) => a + S.cum, 0);
-  return { W, done, cur, open, finished: done === W, stages: st, teamCost, avg: done ? teamCost / done : 0 };
+  return { W, done, cur, open, finished: done === W, chain: CH, stages: st, teamCost, avg: done ? teamCost / done : 0 };
 }
 
 /* 봇 발주 규칙: 이번 주 주문량 + (목표 재고 − 순재고)의 절반. 이미 주문해 둔 물량은 고려하지 않음 → 평범한 사람처럼 출렁임 */
@@ -407,14 +420,14 @@ const $ = id => document.getElementById(id);
 
 /* ══ 주문 그래프 (SVG) — 고객 수요 + 역할별 발주 ══ */
 function orderChart(cfg, sim, opt = {}) {
-  const W = cfg.demand.length, n = Math.max(1, opt.weeks ?? sim.done);
+  const W = Math.max(2, sim.done), n = Math.max(1, opt.weeks ?? sim.done);
   const series = [{ name: '고객 수요', color: DEMAND_COLOR, data: cfg.demand.slice(0, n), dash: '5 4' }];
-  ROLES.forEach((r, s) => series.push({ name: `${ROLE[r].en}`, color: ROLE[r].color, data: sim.stages[s].rows.slice(0, n).map(x => x.order ?? null) }));
+  sim.stages.forEach(S => series.push({ name: ROLE[S.role].short || ROLE[S.role].en, color: ROLE[S.role].color, data: S.rows.slice(0, n).map(x => x.order ?? null) }));
   return lineChart(series, W, opt);
 }
 function netInvChart(cfg, sim, opt = {}) {
-  const W = cfg.demand.length, n = sim.done;
-  const series = ROLES.map((r, s) => ({ name: ROLE[r].en, color: ROLE[r].color, data: sim.stages[s].rows.slice(0, n).map(x => x.invA - x.back) }));
+  const W = Math.max(2, sim.done), n = sim.done;
+  const series = sim.stages.map(S => ({ name: ROLE[S.role].short || ROLE[S.role].en, color: ROLE[S.role].color, data: S.rows.slice(0, n).map(x => x.invA - x.back) }));
   return lineChart(series, W, { ...opt, zero: true });
 }
 function lineChart(series, W, opt = {}) {
@@ -545,7 +558,7 @@ function enter() {
 function mySeat(teams) {
   for (const [t, team] of Object.entries(teams || {})) {
     if (!team || !team.seats) continue;
-    const roles = ROLES.filter(r => team.seats[r] && team.seats[r].name === user.name);
+    const roles = ALL_ROLES.filter(r => team.seats[r] && team.seats[r].name === user.name);
     if (roles.length) return { t: +t, roles };
   }
   return null;
@@ -558,10 +571,11 @@ function render() {
   const seat = mySeat(teams);
   if (!seat) { renderJoin(teams); show('s-join'); return; }
   const team = teams[seat.t];
-  const full = ROLES.every(r => team.seats && team.seats[r]);
+  const full = chainOf(team).every(r => team.seats && team.seats[r]);
   const sim = simTeam(cfg, team);
   if (!full || (cfg.released === 0 && sim.done === 0)) { renderLobby(seat, team, full, sim); show('s-lobby'); return; }
-  if (sim.finished) { renderFinal(seat, team, sim, teams); show('s-final'); return; }
+  if (cfg.ended && sim.done === 0) { $('nogame-t').textContent = '게임이 끝났습니다'; $('nogame-s').textContent = '우리 팀은 진행한 주가 없어 결과가 없습니다.'; show('s-nogame'); return; }
+  if (sim.finished || cfg.ended) { renderFinal(seat, team, sim, teams); show('s-final'); return; }
   renderPlay(seat, team, sim, teams);
   show('s-play');
 }
@@ -570,24 +584,26 @@ function render() {
 function renderJoin(teams) {
   $('team-grid').innerHTML = Array.from({ length: cfg.teams }, (_, i) => {
     const t = i + 1, seats = (teams[t] && teams[t].seats) || {};
-    const dots = ROLES.map(r => `<span class="dot${seats[r] ? ' on' : ''}" style="${seats[r] ? 'background:' + ROLE[r].color : ''}" title="${ROLE[r].en}"></span>`).join('');
+    const dots = ROLES.map(r => { const q = seats[r] ? r : (seats.M && (r === 'D' || r === 'W')) ? 'M' : null;
+      return `<span class="dot${q ? ' on' : ''}" style="${q ? 'background:' + ROLE[q].color : ''}" title="${ROLE[r].en}"></span>`; }).join('');
     return `<button class="tbtn${selTeam === t ? ' sel' : ''}" onclick="pickTeam(${t})"><div class="tn">${t}조</div><div class="dots">${dots}</div></button>`;
   }).join('');
   if (!selTeam) { $('role-card').style.display = 'none'; return; }
   $('role-card').style.display = 'block';
   $('role-team').textContent = `${selTeam}조`;
   const seats = (teams[selTeam] && teams[selTeam].seats) || {};
-  const opts = [...ROLES.map(r => ({ id: r, roles: [r] })), { id: 'DW', roles: ['D', 'W'] }];
-  if (selRole && opts.find(o => o.id === selRole).roles.some(r => seats[r])) selRole = null;
-  $('role-grid').innerHTML = opts.map(o => {
-    const taken = o.roles.filter(r => seats[r]);
-    const who = taken.map(r => esc(seats[r].nick || seats[r].name)).join(', ');
-    const isDW = o.id === 'DW';
-    return `<button class="rbtn${selRole === o.id ? ' sel' : ''}" ${taken.length ? 'disabled' : ''} onclick="pickRole('${o.id}')">
-      <span class="ic">${isDW ? '🚚🏬' : ROLE[o.id].icon}</span>
-      <div class="en">${isDW ? 'Dist. + Whole.' : ROLE[o.id].en}</div>
-      <div class="ko">${isDW ? '3인 팀용' : ROLE[o.id].ko}</div>
-      <div class="who">${taken.length ? who : '비어 있음'}</div></button>`;
+  /* 3인 팀(M)과 4인 팀(D·W)은 함께 쓸 수 없음 */
+  const why = r => seats[r] ? esc(seats[r].nick || seats[r].name)
+    : r === 'M' && (seats.D || seats.W) ? '4인 팀으로 구성됨'
+    : (r === 'D' || r === 'W') && seats.M ? '3인 팀으로 구성됨' : '';
+  if (selRole && why(selRole)) selRole = null;
+  $('role-grid').innerHTML = ['R', 'D', 'W', 'F', 'M'].map(r => {
+    const w = why(r);
+    return `<button class="rbtn${selRole === r ? ' sel' : ''}" ${w ? 'disabled' : ''} onclick="pickRole('${r}')">
+      <span class="ic">${ROLE[r].icon}</span>
+      <div class="en">${ROLE[r].short || ROLE[r].en}</div>
+      <div class="ko">${ROLE[r].ko}</div>
+      <div class="who">${w || '비어 있음'}</div></button>`;
   }).join('');
   $('join-btn').disabled = !selRole;
 }
@@ -596,12 +612,14 @@ function pickRole(r) { selRole = r; render(); }
 
 async function joinSeat() {
   if (!selTeam || !selRole) return;
-  const roles = selRole === 'DW' ? ['D', 'W'] : [selRole];
+  const roles = [selRole];
   const obj = {};
   roles.forEach(r => obj['seats/' + r] = { name: user.name, nick: user.nick || user.name, ts: Date.now() });
   $('join-btn').disabled = true;
   try {
     if (mySeat(G && G.teams)) throw new Error('already');
+    const seats = (G.teams && G.teams[selTeam] && G.teams[selTeam].seats) || {};
+    if ((selRole === 'M' && (seats.D || seats.W)) || ((selRole === 'D' || selRole === 'W') && seats.M)) throw new Error('mixed');
     await DB.create(`beergame/${user.code}/teams/${selTeam}`, obj);
   } catch (e) {
     $('join-msg').className = 'msg err';
@@ -621,7 +639,7 @@ function chainHtml(team, myRoles, week) {
       <div class="nm">${s ? esc(s.nick || s.name) + (me ? ' (나)' : '') : '<span style="color:var(--red)">비어 있음</span>'}</div>${stt ? `<div class="stt">${stt}</div>` : ''}</div>`;
   };
   const cust = `<div class="ch-node" style="background:var(--surface2);"><div class="ic">🙂</div><div class="en">Customer</div><div class="nm">교수자</div></div>`;
-  return [cust, ...ROLES.map(node)].join('<div class="ch-arrow">←</div>');
+  return [cust, ...chainOf(team).map(node)].join('<div class="ch-arrow">←</div>');
 }
 function rulesHtml() {
   return `
@@ -630,13 +648,13 @@ function rulesHtml() {
     <div class="ri">📑 <span>받은 주문은 반드시 채워야 합니다. 재고가 모자라면 <b>밀린 주문</b>으로 남아 다음 주에 먼저 보냅니다.</span></div>
     <div class="ri">💰 <span>재고는 1개당 주 <b>${cfg.hold}만원</b>, 밀린 주문은 1개당 주 <b>${cfg.back}만원</b>의 비용이 듭니다. 팀 전체 비용이 낮을수록 순위가 높습니다.</span></div>
     <div class="ri">🤐 <span>팀원끼리 수요나 재고를 이야기할 수 없습니다. 오가는 정보는 <b>주문량</b>뿐입니다. 고객 수요는 Retailer만 봅니다.</span></div>
-    <div class="ri">🏁 <span>시작 재고는 Retailer·Distributor·Wholesaler ${cfg.initInv.R}·${cfg.initInv.D}·${cfg.initInv.W}개, Factory ${cfg.initInv.F}개입니다. 총 ${cfg.demand.length}주를 진행합니다.</span></div>`;
+    <div class="ri">🏁 <span>시작 재고는 Retailer·Distributor·Wholesaler ${cfg.initInv.R}·${cfg.initInv.D}·${cfg.initInv.W}개, Factory ${cfg.initInv.F}개입니다. 게임이 몇 주차에 끝날지는 교수자가 정합니다.</span></div>`;
 }
 function renderLobby(seat, team, full, sim) {
   $('lobby-team').textContent = `${seat.t}조 · 내 역할: ${seat.roles.map(roleLabel).join(' + ')}`;
   $('lobby-chain').innerHTML = chainHtml(team, seat.roles, null);
   $('lobby-msg').innerHTML = !full
-    ? '<span class="spin">⏳</span> 팀원이 모두 들어오기를 기다리는 중입니다. 3명인 팀은 한 사람이 Distributor + Wholesaler를 맡아 주세요.'
+    ? '<span class="spin">⏳</span> 팀원이 모두 들어오기를 기다리는 중입니다. 3명인 팀은 한 사람이 Distributor + Wholesaler(맨 오른쪽 역할)를 맡아 주세요.'
     : '<span class="spin">⏳</span> 팀이 모두 모였습니다. 교수자가 1주차를 시작하면 바로 진행됩니다.';
   $('leave-btn').style.display = team.orders ? 'none' : 'inline-block';
   $('rules').innerHTML = rulesHtml();
@@ -651,19 +669,18 @@ async function leaveSeat() {
 
 /* ══ 게임 ══ */
 function renderPlay(seat, team, sim, teams) {
-  const W = sim.W, cur = sim.cur;
-  const myCost = seat.roles.reduce((a, r) => a + sim.stages[ROLES.indexOf(r)].cum, 0);
+  const cur = sim.cur;
+  const myCost = seat.roles.reduce((a, r) => a + stageOf(sim, r).cum, 0);
   const rk = rankTeams(cfg, teams);
   const mine = rk.played.find(x => x.t === seat.t);
 
   if (lastDone != null && sim.done > lastDone) {
-    const wc = seat.roles.reduce((a, r) => a + sim.stages[ROLES.indexOf(r)].rows[sim.done - 1].cost, 0);
+    const wc = seat.roles.reduce((a, r) => a + stageOf(sim, r).rows[sim.done - 1].cost, 0);
     toast(`✅ ${sim.done}주차 마감 · 이번 주 내 비용 ${man(wc)}`);
   }
   lastDone = sim.done;
 
-  $('prog').innerHTML = Array.from({ length: W }, (_, i) => `<i class="${i < sim.done ? 'done' : i === sim.done ? 'cur' : ''}"></i>`).join('');
-  $('st-week').textContent = `${cur} / ${W}주`;
+  $('st-week').textContent = `${cur}주차`;
   $('st-my').textContent = man(myCost);
   $('st-team').textContent = man(sim.teamCost);
   $('st-rank').textContent = mine ? `${mine.rank}위 / ${rk.played.length}팀` : '-';
@@ -687,7 +704,7 @@ function renderPlay(seat, team, sim, teams) {
 }
 
 function waitingWho(team, cur) {
-  const left = ROLES.filter(r => getOrder(team, r, cur) == null);
+  const left = chainOf(team).filter(r => getOrder(team, r, cur) == null);
   return left.length ? `아직 결정 중: ${left.map(r => `<b>${ROLE[r].en}</b>`).join(', ')}` : '모두 제출했습니다. 다음 주로 넘어갑니다…';
 }
 
@@ -703,8 +720,8 @@ function decideHtml(seat, team, sim, submitted) {
       <div class="s">${mine}<br><span id="wait-list">${waitingWho(team, cur)}</span></div></div>`;
   }
   const panels = seat.roles.map(r => {
-    const s = ROLES.indexOf(r), row = sim.stages[s].rows[cur - 1];
-    const prev = sim.stages[s].rows[cur - 2];
+    const S = stageOf(sim, r), row = S.rows[cur - 1];
+    const prev = S.rows[cur - 2];
     const prevInv = prev ? prev.invA : cfg.initInv[r], prevBack = prev ? prev.back : 0;
     const isR = r === 'R', isF = r === 'F';
     const v = draft[r] ?? '';
@@ -784,8 +801,7 @@ function lbHtml(rk, myT, final) {
 }
 function roleRankHtml(rk, seat) {
   return seat.roles.map(r => {
-    const s = ROLES.indexOf(r);
-    const arr = rk.played.map(x => ({ t: x.t, v: x.sim.stages[s].cum / x.done })).sort((a, b) => a.v - b.v);
+    const arr = rk.played.filter(x => stageOf(x.sim, r)).map(x => ({ t: x.t, v: stageOf(x.sim, r).cum / x.done })).sort((a, b) => a.v - b.v);
     const i = arr.findIndex(a => a.t === seat.t);
     return i < 0 ? '' : `${ROLE[r].icon} 전체 ${ROLE[r].en} 중 내 순위 <b>${i + 1}위</b> / ${arr.length}명`;
   }).filter(Boolean).join(' &nbsp;·&nbsp; ');
@@ -793,7 +809,7 @@ function roleRankHtml(rk, seat) {
 
 /* ══ 장부 (엑셀 양식) ══ */
 function ledgerHtml(r, sim, titled) {
-  const s = ROLES.indexOf(r), rows = sim.stages[s].rows;
+  const rows = stageOf(sim, r).rows;
   const isR = r === 'R', isF = r === 'F';
   let sum = 0;
   const body = rows.map(x => {
@@ -811,24 +827,25 @@ function ledgerHtml(r, sim, titled) {
 
 /* ══ 최종 ══ */
 function renderFinal(seat, team, sim, teams) {
-  if (lastKey === 'final') { $('f-lb').innerHTML = lbHtml(rankTeams(cfg, teams), seat.t, true); fRank(seat, teams); return; }
-  lastKey = 'final';
-  const myCost = seat.roles.reduce((a, r) => a + sim.stages[ROLES.indexOf(r)].cum, 0);
-  $('f-team').textContent = `${seat.t}조 · ${sim.W}주 총비용`;
+  const fk = 'final|' + cfg.W + '|' + sim.done + '|' + sim.chain.join('');
+  if (lastKey === fk) { $('f-lb').innerHTML = lbHtml(rankTeams(cfg, teams), seat.t, true); fRank(seat, teams); return; }
+  lastKey = fk;
+  const myCost = seat.roles.reduce((a, r) => a + stageOf(sim, r).cum, 0);
+  $('f-team').textContent = `${seat.t}조 · ${sim.done}주 총비용` + (sim.done < cfg.W ? ` (게임은 ${cfg.W}주차에 끝났고, 우리 팀은 ${sim.done}주까지 진행)` : '');
   $('f-cost').textContent = man(sim.teamCost);
   $('f-my').textContent = `${man(myCost)} (${seat.roles.map(r => ROLE[r].en).join(' + ')})`;
   fRank(seat, teams);
   $('f-chart').innerHTML = orderChart(cfg, sim);
   $('f-inv').innerHTML = netInvChart(cfg, sim, { h: 220 });
-  const base = stdev(cfg.demand);
+  const dm = cfg.demand.slice(0, sim.done), base = stdev(dm);   // 실제로 진행한 주만
   $('f-sd').innerHTML = `<tr><th></th><th>주문 평균</th><th>주문 표준편차</th><th>고객 수요 대비</th></tr>
-    <tr><td style="color:${DEMAND_COLOR};font-weight:700;">고객 수요</td><td>${(cfg.demand.reduce((a, b) => a + b, 0) / cfg.demand.length).toFixed(1)}</td><td>${base.toFixed(1)}</td><td>1.0배</td></tr>` +
-    ROLES.map((r, s) => {
-      const o = sim.stages[s].rows.map(x => x.order);
+    <tr><td style="color:${DEMAND_COLOR};font-weight:700;">고객 수요</td><td>${(dm.reduce((a, b) => a + b, 0) / dm.length).toFixed(1)}</td><td>${base.toFixed(1)}</td><td>1.0배</td></tr>` +
+    sim.stages.map(S => {
+      const r = S.role, o = S.rows.slice(0, sim.done).map(x => x.order);
       const sd = stdev(o);
       return `<tr${seat.roles.includes(r) ? ' style="background:var(--navy-l)"' : ''}><td style="color:${ROLE[r].color};font-weight:700;">${ROLE[r].en}</td><td>${(o.reduce((a, b) => a + b, 0) / o.length).toFixed(1)}</td><td>${sd.toFixed(1)}</td><td><b>${(sd / (base || 1)).toFixed(1)}배</b></td></tr>`;
     }).join('');
-  const sdF = stdev(sim.stages[3].rows.map(x => x.order));
+  const sdF = stdev(stageOf(sim, 'F').rows.slice(0, sim.done).map(x => x.order));
   $('f-learn').innerHTML = `
     <b>① 수요는 잔잔했는데 주문은 출렁였습니다.</b> 고객 수요의 표준편차는 ${base.toFixed(1)}개였지만, 우리 팀 공장의 생산 지시는 ${sdF.toFixed(1)}개였습니다. 위 단계로 갈수록 변동이 커지는 현상을 <b>채찍 효과(bullwhip effect)</b>라고 합니다.<br><br>
     <b>② 누가 잘못해서가 아니라 구조 때문입니다.</b> 주문과 배송에 시간이 걸리고, 각자 바로 아래 단계의 주문만 보고 판단합니다. 물건이 모자라면 더 많이 주문하고, 이미 주문해 두고 아직 받지 못한 물량은 잊기 쉽습니다. 그 결과 나중에 물건이 한꺼번에 몰려 재고가 쌓입니다.<br><br>
@@ -839,7 +856,7 @@ function renderFinal(seat, team, sim, teams) {
 function fRank(seat, teams) {
   const rk = rankTeams(cfg, teams), me = rk.played.find(x => x.t === seat.t);
   const fin = rk.played.filter(x => x.sim.finished).length;
-  $('f-rank').textContent = me ? `${me.rank}위 / ${rk.played.length}팀` + (fin < rk.played.length ? ` (완료 ${fin}팀)` : '') : '-';
+  $('f-rank').textContent = me ? `${me.rank}위 / ${rk.played.length}팀` + (!cfg.ended && fin < rk.played.length ? ` (완료 ${fin}팀)` : '') : '-';
 }
 
 /* ══ 시작 ══ */
